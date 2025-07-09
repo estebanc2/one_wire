@@ -3,6 +3,7 @@
 // ROM commands
 #define MATCH_ROM 0x55
 #define SKIP_ROM 0xCC
+#define READ_ROM 0x33
 //Function commands
 #define CONVERT_T 0x44
 #define READ_SCRATCH 0xBE
@@ -72,7 +73,7 @@ static esp_err_t initialize (){
     return ESP_OK;
 }
 
-static uint8_t _read_bit(void)
+static uint8_t read_1_bit(void)
 {
     gpio_set_direction(pin, GPIO_MODE_OUTPUT);
     gpio_set_level(pin, 0);
@@ -85,7 +86,7 @@ static uint8_t _read_bit(void)
     return bit;
 }
 
-static void _send_bit(const uint8_t bit)
+static void send_1_bit(const uint8_t bit)
 {
     gpio_set_direction(pin, GPIO_MODE_OUTPUT);
     gpio_set_level(pin, 0);
@@ -107,7 +108,7 @@ static void _send_bit(const uint8_t bit)
 
 static void send_1_byte (uint8_t byte){
     for (uint8_t i = 0; i < 8; ++i){
-        _send_bit(byte & 1);
+        send_1_bit(byte & 1);
         byte >>= 1;
     }
 }
@@ -117,7 +118,7 @@ static uint8_t read_1_byte (void){
     for (uint8_t i = 0; i < 8; ++i)
     {
         byte >>= 1;
-        if (_read_bit() != 0)
+        if (read_1_bit() != 0)
         {
             byte |= 0x80;
         }
@@ -141,21 +142,20 @@ static uint8_t compute_crc8(const uint8_t *data, uint8_t len) {
     return crc;
 }
 
-static esp_err_t crc_check (rx_t rx){
-	rx_t rx_to_test = rx;
+static esp_err_t crc_check (uint8_t *data, size_t len){
     // Calculamos el CRC de los primeros 7 bytes
-    uint8_t calculated_crc = compute_crc8((const uint8_t *)&rx_to_test, 8);
+    uint8_t calculated_crc = compute_crc8((const uint8_t *)data, len-1);
     //printf("calc: %d, recei: %d\n", calculated_crc, rx.b[8]);
-    if (calculated_crc == rx.b[8]){
+    if (calculated_crc == data[len-1]){
         return ESP_OK;
     }else{
         return ESP_ERR_INVALID_CRC;
     }
 }
 
-esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp_x_10){
+
+esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp){
     rx_t rx = {0};
-    int16_t temp_x_10[sondas];
     if (initialize() != ESP_OK){
         return ESP_ERR_NOT_FOUND; //there are 
     }
@@ -163,33 +163,70 @@ esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp_x_
     send_1_byte(CONVERT_T);
     vTaskDelay(750 / portTICK_PERIOD_MS);
     if (initialize() != ESP_OK){
-        return ESP_ERR_INVALID_STATE; 
+        return ESP_ERR_NOT_FOUND; 
     }
-    for (size_t i = 0; i < sondas; i++) {
-        send_1_byte(MATCH_ROM);
-        uint64_t pos = 0;
-        for (uint8_t i = 0; i <64; i++){
-            pos = (uint64_t)1 << i;
-            if ((sonda[i] & pos) == 0){
-                _send_bit(0);
-            } else {
-                _send_bit(1);
-            }
-        }
+    if (sondas == 0){
+        send_1_byte(SKIP_ROM);
         send_1_byte(READ_SCRATCH);
         for (uint8_t i = 0; i < 9; ++i)
         {
             rx.b[i] = read_1_byte();
         }
-        if (crc_check(rx) != ESP_OK){
-            temp_x_10[i] = -970;//return ESP_ERR_INVALID_CRC; 
+        if (crc_check(rx.b, 9) != ESP_OK){
+            if (temp) temp[0] = -900;//return ESP_ERR_INVALID_CRC; 
         } else{
-            temp_x_10[i] = (10 * (int16_t)((rx.b[1] << 8) | rx.b[0]))/ 16;
+            if (temp) temp[0] = (10 * (int16_t)((rx.b[1] << 8) | rx.b[0]))/ 16;
         }
+    } else {
+        for (size_t i = 0; i < sondas; i++) {
+            send_1_byte(MATCH_ROM);
+            uint64_t pos = 0;
+            for (uint8_t i = 0; i <64; i++){
+                pos = (uint64_t)1 << i;
+                if ((sonda[i] & pos) == 0){
+                    send_1_bit(0);
+                } else {
+                    send_1_bit(1);
+                }
+            }
+            send_1_byte(READ_SCRATCH);
+            for (uint8_t i = 0; i < 9; ++i)
+            {
+                rx.b[i] = read_1_byte();
+            }
+            if (crc_check(rx.b, 9) != ESP_OK){
+                if (temp) temp[i] = -900;//return ESP_ERR_INVALID_CRC; 
+            } else{
+                if (temp) temp[i] = (10 * (int16_t)((rx.b[1] << 8) | rx.b[0]))/ 16;
+            }
+        }
+
     }
     return ESP_OK;
 }
 
-esp_err_t get_rom(uint8_t, const uint64_t *){
+esp_err_t get_rom(uint8_t pin, const uint64_t * rom){
+    if (set_gpio(pin) != ESP_OK){
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (initialize() != ESP_OK){
+        return ESP_ERR_NOT_FOUND; 
+    }
+    send_1_byte(READ_ROM);
+    uint8_t rx[8] = {0};
+    for (uint8_t i = 0; i < 8; i++){
+        rx[i] = read_1_byte();
+    }
+    if (crc_check(rx, 8) != ESP_OK){
+        return ESP_ERR_INVALID_CRC; 
+    }
+    uint64_t code = 0;
+    for (int i = 0; i < 8; i++) {
+        code |= ((uint64_t)rx[i]) << (8 * i);
+    }
+    if (rom) {
+        *((uint64_t*)rom) = code;
+    }
+    printf("code = %016" PRIX64, code);
     return ESP_OK;
 }

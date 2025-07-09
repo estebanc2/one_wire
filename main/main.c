@@ -25,44 +25,35 @@ static const char *TAG = "MAIN";
 #define SONDA_9A 0x4725B0D446927728
 
 static uint64_t sonda[] = {
-	SONDA_1A,
-	SONDA_2A,
-	SONDA_3A,
-    SONDA_4A,
-    SONDA_5A,
-    SONDA_6A,
-    SONDA_7A,
-    SONDA_8A,
-    SONDA_9A
+	//SONDA_1A,
+	//SONDA_2A,
+	//SONDA_3A,
+    //SONDA_4A,
+    //SONDA_5A,
+    //SONDA_6A,
+    //SONDA_7A,
+    //SONDA_8A,
+    //SONDA_9A
 };
 
 static size_t sonda_size = sizeof(sonda) / sizeof(sonda[0]);
+static int unic;
 
 static void sampleTask(void *pvParameters) {
     set_gpio(5);
+    unic = (sonda_size == 0) ? 1 : 0;
     while (1){
-        int16_t temp[sonda_size];
-        esp_err_t err;
-        err = get_temperature (sonda, sonda_size, &temp);
-        switch (err) {
-        case ESP_OK:
-            ESP_LOGI(TAG,"current temp: %.1f\n", (float)(temp[0])/10.0f);
-            break;
-        case ESP_ERR_INVALID_CRC:
-            ESP_LOGE(TAG,"CRC error");
-            break;
-        case ESP_ERR_NOT_FOUND:
+        int16_t temp[sonda_size + unic];
+        if( get_temperature (sonda, sonda_size, temp) != ESP_OK){
             ESP_LOGW(TAG,"no DS18B20 detected");
-            break;
-       case ESP_ERR_TIMEOUT:
-            ESP_LOGE(TAG,"DS18B20 timeout");
-            break;
-        default:
-            break;
+        }
+        for (uint8_t i = 0; i<(sonda_size + unic); i++) {
+            ESP_LOGI(TAG,"current sensor %d temperature = %.1f\n", i + 1, (float)(temp[i])/10.0f);
         }
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
+
 void app_main(void)
 {
     xTaskCreate(sampleTask, "SampleTask", 4096, NULL, 10, NULL);
