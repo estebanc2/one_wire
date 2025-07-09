@@ -1,32 +1,33 @@
-# _Sample project_
+# Minimal DS18B20 temperature sensors connected to one one-wire bus
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+This project brings 3 functions to operate a bus with one to N [DS18B20](assets/DS18B20.pdf) sensors connected to one gpio pin of an Espressif microcontroler.
+The sensors should be connected with [3 wires](assets/schematic.png): pwr, gnd and data, i.e. not in parasite configuration.
+Tested microcontroler were [ESP32-C3](assets/esp32-C3-zero.png) and [ESP8266](assets/esp8266%20schematic.png).
+The first function, get_gpio() is used once to set a particular gpio, the one-wire bus. The second one is the get_temperature() that returns an array of N int16_t for the temperature in °C x 10 of each sensor. get_temperature() receives a pointer and size of an array of ds18b20's rom address and returns around 800ms after executed.
+To know the ds18b20's rom address to full the above array there are a thirs function, get_rom() that need to receive a gpio where only one sensor should be connected and returns this uint64_t address.
+So the suggested operation is first discover all rom address, running the 3er function for each sensor. After that define the array that needs the 2d function to get the temperatures. If only one sensor will be connected it is not necessary to discover it rom address. An empty rom address works as an array with one rom address.
 
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
-
-
-
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
-
-## Example folder contents
-
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
-
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
-files that provide set of directives and instructions describing the project's source files and targets
-(executable, library, or both). 
-
-Below is short explanation of remaining files in the project folder.
-
+```C
+/**
+ * @brief set gpio for the 1 wire bus
+ * @param[in] gpio number
+ * @return
+ *  - ESP_OK
+ *  - ESP_ERR_INVALID_ARG
+ */
+esp_err_t set_gpio (uint8_t);
 ```
-├── CMakeLists.txt
-├── main
-│   ├── CMakeLists.txt
-│   └── main.c
-└── README.md                  This is the file you are currently reading
+
+```C
+/**
+ * @brief get temperature in °C x 10 for all ds18b20 devices in the bus
+ * @param[in] array of N ds18b20 rom addresses
+ * @param[out] array of N temperatures in °C x 10
+ * @return
+ *  - ESP_OK
+ *  - ESP_ERR_NOT_FOUND
+ *  - ESP_ERR_INVALID_STATE
+ *  - ESP_ERR_INVALID_CRC
+ */
+esp_err_t get_temperature (const uint64_t *, size_t, int16_t *);
 ```
-Additionally, the sample project contains Makefile and component.mk files, used for the legacy Make based build system. 
-They are not used or needed when building with CMake and idf.py.
