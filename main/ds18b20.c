@@ -7,8 +7,6 @@
 //Function commands
 #define CONVERT_T 0x44
 #define READ_SCRATCH 0xBE
-//config. resolution
-#define RES_12 0x7F 
 //1 wire times
 #define MASTER_RESET_PULSE_DURATION 480 // Reset time high. Reset time low.
 #define RESPONSE_MAX_DURATION 60        // Presence detect high.
@@ -227,6 +225,5 @@ esp_err_t get_rom(uint8_t pin, const uint64_t * rom){
     if (rom) {
         *((uint64_t*)rom) = code;
     }
-    printf("code = %016" PRIX64, code);
     return ESP_OK;
 }

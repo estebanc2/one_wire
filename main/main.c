@@ -25,6 +25,7 @@ static const char *TAG = "MAIN";
 #define SONDA_9A 0x4725B0D446927728
 
 static uint64_t sonda[] = {
+    SONDA_5
 	//SONDA_1A,
 	//SONDA_2A,
 	//SONDA_3A,
@@ -48,7 +49,7 @@ static void sampleTask(void *pvParameters) {
             ESP_LOGW(TAG,"no DS18B20 detected");
         }
         for (uint8_t i = 0; i<(sonda_size + unic); i++) {
-            ESP_LOGI(TAG,"current sensor %d temperature = %.1f\n", i + 1, (float)(temp[i])/10.0f);
+            ESP_LOGI(TAG,"current sensor %d temperature = %.1f", i + 1, (float)(temp[i])/10.0f);
         }
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
@@ -56,6 +57,15 @@ static void sampleTask(void *pvParameters) {
 
 void app_main(void)
 {
-    xTaskCreate(sampleTask, "SampleTask", 4096, NULL, 10, NULL);
-
+#define DISCOVER_ROM   
+#ifdef DISCOVER_ROM
+    xTaskCreate(sampleTask, "SampleTask", 2048, NULL, 10, NULL);
+#else 
+    uint64_t rom = 0;
+    if (get_rom( 5, &rom) != ESP_OK){
+        ESP_LOGW(TAG,"no DS18B20 detected");
+    } else {
+        ESP_LOGI(TAG,"current rom address sensor %016" PRIX64, rom);
+    }
+#endif
 }
