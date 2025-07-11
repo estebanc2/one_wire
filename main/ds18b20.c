@@ -22,6 +22,7 @@
 #define esp_delay_us(x) esp_rom_delay_us(x)
 #endif
 
+static const char *TAG = "ds18b20";
 static uint8_t pin;
 
 esp_err_t set_gpio(uint8_t gpio)
@@ -178,19 +179,16 @@ esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp){
     } else {
         for (size_t i = 0; i < sondas; i++) {
             send_1_byte(MATCH_ROM);
-            uint64_t pos = 0;
-            for (uint8_t i = 0; i <64; i++){
-                pos = (uint64_t)1 << i;
-                if ((sonda[i] & pos) == 0){
-                    send_1_bit(0);
-                } else {
-                    send_1_bit(1);
-                }
+            ESP_LOGI(TAG,"current rom address sensor %016" PRIX64, sonda[i]);
+            uint8_t b[8] = {0};
+            for (uint8_t j = 0; j < 8; j++){
+                b[j] = (uint8_t)((sonda[i] >> (j * 8)) & 0xFF); 
+                send_1_byte(b[j]);
             }
             send_1_byte(READ_SCRATCH);
-            for (uint8_t i = 0; i < 9; ++i)
+            for (uint8_t j = 0; j < 9; ++j)
             {
-                rx.b[i] = read_1_byte();
+                rx.b[j] = read_1_byte();
             }
             if (crc_check(rx.b, 9) != ESP_OK){
                 if (temp) temp[i] = -900;//return ESP_ERR_INVALID_CRC; 
