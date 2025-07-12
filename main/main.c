@@ -14,24 +14,16 @@ static const char *TAG = "MAIN";
 #define SONDA_10 0xC96BD9D446C3BC28
 #define SONDA_19 0x50713FD44642A728
 
-#define SONDA_1A 0xB56ED3D44648D828
-#define SONDA_2A 0xC36522D446883828
-#define SONDA_3A 0xF26D24D446F51A28
-#define SONDA_4A 0x6F1FFFD446070E28
-#define SONDA_5A 0xE30AACD446FB7028
-#define SONDA_6A 0x58705AD446BE6228
-#define SONDA_7A 0x1D40A6D446374A28
-#define SONDA_8A 0xA5572DD446CFE828
-#define SONDA_9A 0x4725B0D446927728
+#define ONE_WIRE_BUS 5
 
 static uint64_t sonda[] = {
+    0
 };
 
 static size_t sonda_size = sizeof(sonda) / sizeof(sonda[0]);
 
 static void sampleTask(void *pvParameters) {
-    if (sonda_size == 0) sonda_size = 1;
-    set_gpio(5);
+    set_gpio(ONE_WIRE_BUS);
     int16_t temp[sonda_size];
     while (1){
         if( get_temperature (sonda, sonda_size, temp) == ESP_OK){

@@ -53,7 +53,7 @@ esp_err_t get_rom(uint8_t, uint64_t *);
 ## Suggested usage
 
 First, discover all ROM addresses by running `get_rom()` for each sensor (one at a time on the bus). Then, define the array needed by `get_temperature()` to read all sensors.  
-If only one sensor will be connected, it is not necessary to discover its ROM address; an empty ROM address array works as an array with one ROM address.
+If only one sensor will be connected, it is not necessary to discover its ROM address; a 0 (zero) as ROM address works as a ROM address.
 
 ## Example usage: main.c
 
