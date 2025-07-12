@@ -25,47 +25,38 @@ static const char *TAG = "MAIN";
 #define SONDA_9A 0x4725B0D446927728
 
 static uint64_t sonda[] = {
-    SONDA_5
-	//SONDA_1A,
-	//SONDA_2A,
-	//SONDA_3A,
-    //SONDA_4A,
-    //SONDA_5A,
-    //SONDA_6A,
-    //SONDA_7A,
-    //SONDA_8A,
-    //SONDA_9A
 };
 
 static size_t sonda_size = sizeof(sonda) / sizeof(sonda[0]);
-static int unic;
 
 static void sampleTask(void *pvParameters) {
+    if (sonda_size == 0) sonda_size = 1;
     set_gpio(5);
-    unic = (sonda_size == 0) ? 1 : 0;
+    int16_t temp[sonda_size];
     while (1){
-        int16_t temp[sonda_size + unic];
-        if( get_temperature (sonda, sonda_size, temp) != ESP_OK){
+        if( get_temperature (sonda, sonda_size, temp) == ESP_OK){
+            for (uint8_t i = 0; i<(sonda_size); i++) {
+                ESP_LOGI(TAG,"current sensor %d temperature = %.1f", i + 1, (float)(temp[i])/10.0f);
+            }
+        } else {    
             ESP_LOGW(TAG,"no DS18B20 detected");
         }
-        for (uint8_t i = 0; i<(sonda_size + unic); i++) {
-            ESP_LOGI(TAG,"current sensor %d temperature = %.1f", i + 1, (float)(temp[i])/10.0f);
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 }
 
 void app_main(void)
 {
-#define DISCOVER_ROM   
+ESP_LOGI(TAG,"sonda size %d, value %016" PRIX64, sonda_size, sonda[0]);
+//#define DISCOVER_ROM   
 #ifdef DISCOVER_ROM
-    xTaskCreate(sampleTask, "SampleTask", 2048, NULL, 10, NULL);
-#else 
     uint64_t rom = 0;
     if (get_rom( 5, &rom) != ESP_OK){
         ESP_LOGW(TAG,"no DS18B20 detected");
     } else {
         ESP_LOGI(TAG,"current rom address sensor %016" PRIX64, rom);
     }
+#else 
+    xTaskCreate(sampleTask, "SampleTask", 2048, NULL, 10, NULL);
 #endif
 }

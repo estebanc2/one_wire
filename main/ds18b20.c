@@ -22,7 +22,6 @@
 #define esp_delay_us(x) esp_rom_delay_us(x)
 #endif
 
-static const char *TAG = "ds18b20";
 static uint8_t pin;
 
 esp_err_t set_gpio(uint8_t gpio)
@@ -45,7 +44,6 @@ static esp_err_t initialize (){
     gpio_set_direction(pin, GPIO_MODE_OUTPUT);
     gpio_set_level(pin, 0);
     esp_delay_us(MASTER_RESET_PULSE_DURATION);
-    //gpio_set_level(pin, 1);
     gpio_set_direction(pin, GPIO_MODE_INPUT);
     esp_delay_us(RECOVERY_DURATION);
     uint8_t response_time = 0;
@@ -77,7 +75,6 @@ static uint8_t read_1_bit(void)
     gpio_set_direction(pin, GPIO_MODE_OUTPUT);
     gpio_set_level(pin, 0);
     esp_delay_us(TIME_SLOT_START_DURATION);
-    //gpio_set_level(pin, 1);
     gpio_set_direction(pin, GPIO_MODE_INPUT);
     esp_delay_us(VALID_DATA_DURATION - TIME_SLOT_START_DURATION);
     uint8_t bit = gpio_get_level(pin);
@@ -92,14 +89,12 @@ static void send_1_bit(const uint8_t bit)
     if (bit == 0)
     {
         esp_delay_us(58);//TIME_SLOT_DURATION);
-        //gpio_set_level(pin, 1);
         gpio_set_direction(pin, GPIO_MODE_INPUT);
         esp_delay_us(RECOVERY_DURATION);
     }
     else
     {
         esp_delay_us(TIME_SLOT_START_DURATION);
-        //gpio_set_level(pin, 1);
         gpio_set_direction(pin, GPIO_MODE_INPUT);
         esp_delay_us(TIME_SLOT_DURATION);
     }
@@ -142,9 +137,7 @@ static uint8_t compute_crc8(const uint8_t *data, uint8_t len) {
 }
 
 static esp_err_t crc_check (uint8_t *data, size_t len){
-    // Calculamos el CRC de los primeros 7 bytes
     uint8_t calculated_crc = compute_crc8((const uint8_t *)data, len-1);
-    //printf("calc: %d, recei: %d\n", calculated_crc, rx.b[8]);
     if (calculated_crc == data[len-1]){
         return ESP_OK;
     }else{
@@ -152,51 +145,43 @@ static esp_err_t crc_check (uint8_t *data, size_t len){
     }
 }
 
-
 esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp){
-    rx_t rx = {0};
     if (initialize() != ESP_OK){
-        return ESP_ERR_NOT_FOUND; //there are 
+        return ESP_ERR_NOT_FOUND;
     }
     send_1_byte(SKIP_ROM);
     send_1_byte(CONVERT_T);
     vTaskDelay(750 / portTICK_PERIOD_MS);
-    if (initialize() != ESP_OK){
-        return ESP_ERR_NOT_FOUND; 
-    }
-    if (sondas == 0){
-        send_1_byte(SKIP_ROM);
-        send_1_byte(READ_SCRATCH);
-        for (uint8_t i = 0; i < 9; ++i)
-        {
-            rx.b[i] = read_1_byte();
-        }
-        if (crc_check(rx.b, 9) != ESP_OK){
-            if (temp) temp[0] = -900;//return ESP_ERR_INVALID_CRC; 
-        } else{
-            if (temp) temp[0] = (10 * (int16_t)((rx.b[1] << 8) | rx.b[0]))/ 16;
-        }
-    } else {
-        for (size_t i = 0; i < sondas; i++) {
-            send_1_byte(MATCH_ROM);
-            ESP_LOGI(TAG,"current rom address sensor %016" PRIX64, sonda[i]);
-            uint8_t b[8] = {0};
-            for (uint8_t j = 0; j < 8; j++){
-                b[j] = (uint8_t)((sonda[i] >> (j * 8)) & 0xFF); 
-                send_1_byte(b[j]);
+    for (size_t i = 0; i < sondas; i++) {
+        if (initialize() != ESP_OK){
+            if (temp) temp[i] = -800; //ESP_ERR_NOT_FOUND; 
+        } else {
+            if (sonda[0] != 0) { 
+                send_1_byte(MATCH_ROM);
+                uint64_t pos = 0;
+                for (uint8_t k = 0; k < 64; k++){
+                     pos = (uint64_t)1 << k;
+                    if ((sonda[i] & pos) == 0){
+                        send_1_bit(0);
+                    } else {
+                        send_1_bit(1);
+                        }
+                }
+            } else {
+                send_1_byte(SKIP_ROM);
             }
             send_1_byte(READ_SCRATCH);
+            rx_t rx = {0};
             for (uint8_t j = 0; j < 9; ++j)
             {
                 rx.b[j] = read_1_byte();
             }
             if (crc_check(rx.b, 9) != ESP_OK){
-                if (temp) temp[i] = -900;//return ESP_ERR_INVALID_CRC; 
+                if (temp) temp[i] = -900;//ESP_ERR_INVALID_CRC
             } else{
                 if (temp) temp[i] = (10 * (int16_t)((rx.b[1] << 8) | rx.b[0]))/ 16;
             }
         }
-
     }
     return ESP_OK;
 }
