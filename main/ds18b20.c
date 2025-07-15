@@ -32,7 +32,7 @@ esp_err_t set_gpio(uint8_t gpio)
     config.mode = GPIO_MODE_INPUT;
     config.pin_bit_mask = (1ULL << pin);
     config.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    config.pull_up_en = GPIO_PULLUP_ENABLE;
+    config.pull_up_en = GPIO_PULLUP_DISABLE;
     if (gpio_config(&config) != ESP_OK)
     {
         return ESP_ERR_INVALID_ARG;
@@ -76,9 +76,9 @@ static uint8_t read_1_bit(void)
     gpio_set_level(pin, 0);
     esp_delay_us(TIME_SLOT_START_DURATION);
     gpio_set_direction(pin, GPIO_MODE_INPUT);
-    esp_delay_us(VALID_DATA_DURATION - TIME_SLOT_START_DURATION);
+    esp_delay_us(VALID_DATA_DURATION);
     uint8_t bit = gpio_get_level(pin);
-    esp_delay_us(TIME_SLOT_DURATION - RECOVERY_DURATION - VALID_DATA_DURATION);
+    esp_delay_us(TIME_SLOT_DURATION - VALID_DATA_DURATION);
     return bit;
 }
 
@@ -88,7 +88,8 @@ static void send_1_bit(const uint8_t bit)
     gpio_set_level(pin, 0);
     if (bit == 0)
     {
-        esp_delay_us(58);//TIME_SLOT_DURATION);
+        esp_delay_us(TIME_SLOT_DURATION);
+        gpio_set_level(pin, 1);
         gpio_set_direction(pin, GPIO_MODE_INPUT);
         esp_delay_us(RECOVERY_DURATION);
     }
@@ -96,6 +97,7 @@ static void send_1_bit(const uint8_t bit)
     {
         esp_delay_us(TIME_SLOT_START_DURATION);
         gpio_set_direction(pin, GPIO_MODE_INPUT);
+        gpio_set_level(pin, 1);
         esp_delay_us(TIME_SLOT_DURATION);
     }
 }
