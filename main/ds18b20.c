@@ -8,14 +8,15 @@
 #define CONVERT_T 0x44
 #define READ_SCRATCH 0xBE
 //1 wire times
-#define MASTER_RESET_PULSE_DURATION 480 // Reset time high. Reset time low.
-#define RESPONSE_MAX_DURATION 60        // Presence detect high.
-#define PRESENCE_PULSE_MAX_DURATION 240 // Presence detect low.
-#define RECOVERY_DURATION 1             // Bus recovery time.
-#define TIME_SLOT_START_DURATION 1      // Time slot start.
-#define TIME_SLOT_DURATION 80           // Time slot.
-#define VALID_DATA_DURATION 15          // Valid data duration.
-
+#define MASTER_RESET_PULSE 490 // Reset time high. Reset time low.
+#define DS18B20_MAX_WAITS 60    // Presence detect high.
+#define DS18B20_MAX_TX_PRESENCE 240 // Presence detect low.
+#define RECOVERY_DURATION 2             // Bus recovery time.
+#define MASTER_WRITE_1 4       // Time slot start.
+#define MASTER_WRITE_0 61           // Time slot.
+#define MASTER_READ_INIT 1
+#define MASTER_READ 14          // Valid data duration.
+#define READ_TIME_SLOT 61
 #ifdef CONFIG_IDF_TARGET_ESP8266
 #define esp_delay_us(x) os_delay_us(x)
 #else
@@ -41,15 +42,16 @@ esp_err_t set_gpio(uint8_t gpio)
 }
 
 static esp_err_t initialize (){
-    gpio_set_direction(pin, GPIO_MODE_OUTPUT);
+    gpio_set_direction(pin, GPIO_MODE_OUTPUT_OD);
     gpio_set_level(pin, 0);
-    esp_delay_us(MASTER_RESET_PULSE_DURATION);
+    esp_delay_us(MASTER_RESET_PULSE);
+    gpio_set_level(pin, 1);
     gpio_set_direction(pin, GPIO_MODE_INPUT);
-    esp_delay_us(RECOVERY_DURATION);
+    //esp_delay_us(RECOVERY_DURATION);
     uint8_t response_time = 0;
     while (gpio_get_level(pin) == 1)
     {
-        if (response_time > RESPONSE_MAX_DURATION)
+        if (response_time > DS18B20_MAX_WAITS)
         {
             return ESP_ERR_TIMEOUT;
         }
@@ -59,52 +61,51 @@ static esp_err_t initialize (){
     uint8_t presence_time = 0;
     while (gpio_get_level(pin) == 0)
     {
-        if (presence_time > PRESENCE_PULSE_MAX_DURATION)
+        if (presence_time > DS18B20_MAX_TX_PRESENCE)
         {
             return ESP_ERR_TIMEOUT;
         }
         ++presence_time;
         esp_delay_us(1);
     }
-    esp_delay_us(MASTER_RESET_PULSE_DURATION - response_time - presence_time);
+    esp_delay_us(MASTER_RESET_PULSE - response_time - presence_time);
     return ESP_OK;
+}
+
+static void write_1_bit(const uint8_t bit)
+{
+    gpio_set_direction(pin, GPIO_MODE_OUTPUT_OD);
+    gpio_set_level(pin, 0);
+    if (bit == 0)
+    {
+        esp_delay_us(MASTER_WRITE_0);
+        gpio_set_level(pin, 1);
+        gpio_set_direction(pin, GPIO_MODE_INPUT);
+    } else
+    {
+        esp_delay_us(MASTER_WRITE_1);
+        gpio_set_level(pin, 1);
+        gpio_set_direction(pin, GPIO_MODE_INPUT);
+        esp_delay_us(MASTER_WRITE_0 - MASTER_WRITE_1);
+    }
+    esp_delay_us(RECOVERY_DURATION);
 }
 
 static uint8_t read_1_bit(void)
 {
-    gpio_set_direction(pin, GPIO_MODE_OUTPUT);
+    gpio_set_direction(pin, GPIO_MODE_OUTPUT_OD);
     gpio_set_level(pin, 0);
-    esp_delay_us(TIME_SLOT_START_DURATION);
+    esp_delay_us(MASTER_READ_INIT);
     gpio_set_direction(pin, GPIO_MODE_INPUT);
-    esp_delay_us(VALID_DATA_DURATION);
+    esp_delay_us(MASTER_READ - MASTER_READ_INIT);
     uint8_t bit = gpio_get_level(pin);
-    esp_delay_us(TIME_SLOT_DURATION - VALID_DATA_DURATION);
+    esp_delay_us(READ_TIME_SLOT - MASTER_READ_INIT - MASTER_READ);
     return bit;
-}
-
-static void send_1_bit(const uint8_t bit)
-{
-    gpio_set_direction(pin, GPIO_MODE_OUTPUT);
-    gpio_set_level(pin, 0);
-    if (bit == 0)
-    {
-        esp_delay_us(TIME_SLOT_DURATION);
-        gpio_set_level(pin, 1);
-        gpio_set_direction(pin, GPIO_MODE_INPUT);
-        esp_delay_us(RECOVERY_DURATION);
-    }
-    else
-    {
-        esp_delay_us(TIME_SLOT_START_DURATION);
-        gpio_set_direction(pin, GPIO_MODE_INPUT);
-        gpio_set_level(pin, 1);
-        esp_delay_us(TIME_SLOT_DURATION);
-    }
 }
 
 static void send_1_byte (uint8_t byte){
     for (uint8_t i = 0; i < 8; ++i){
-        send_1_bit(byte & 1);
+        write_1_bit(byte & 1);
         byte >>= 1;
     }
 }
@@ -164,9 +165,9 @@ esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp){
                 for (uint8_t k = 0; k < 64; k++){
                      pos = (uint64_t)1 << k;
                     if ((sonda[i] & pos) == 0){
-                        send_1_bit(0);
+                        write_1_bit(0);
                     } else {
-                        send_1_bit(1);
+                        write_1_bit(1);
                         }
                 }
             } else {

@@ -3,12 +3,12 @@
   "idf.espIdfPath": "/Users/estebanc2/repos/esp-idf-v5.4/v5.4.1/esp-idf",
   "idf.pythonInstallPath": "/Library/Frameworks/Python.framework/Versions/3.11/bin/python",
   "idf.openOcdConfigs": [
-    "board/esp32s3-builtin.cfg"
+    "board/esp32c3-builtin.cfg"
   ],
   "idf.port": "/dev/tty.usbmodem12101",
   "idf.toolsPath": "/Users/estebanc2/.espressif32",
   "idf.customExtraVars": {
-    "IDF_TARGET": "esp32s3"
+    "IDF_TARGET": "esp32c3"
   },
   "idf.flashType": "UART",
   "files.associations": {
