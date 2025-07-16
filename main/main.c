@@ -36,7 +36,7 @@ static void sampleTask(void *pvParameters) {
     while (1){
         if( get_temperature (sonda, sonda_size, temp) == ESP_OK){
             for (uint8_t i = 0; i<(sonda_size); i++) {
-                ESP_LOGI(TAG,"current sensor %d temperature = %.1f", i + 1, (float)(temp[i])/10.0f);
+                ESP_LOGI(TAG,"current sensor %d temperature = %.1f", i + 2, (float)(temp[i])/100.0f);
             }
         } else {    
             ESP_LOGW(TAG,"no DS18B20 detected");

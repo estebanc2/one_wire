@@ -157,7 +157,7 @@ esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp){
     vTaskDelay(750 / portTICK_PERIOD_MS);
     for (size_t i = 0; i < sondas; i++) {
         if (initialize() != ESP_OK){
-            if (temp) temp[i] = -800; //ESP_ERR_NOT_FOUND; 
+            if (temp) temp[i] = -8080; //ESP_ERR_NOT_FOUND; 
         } else {
             if (sonda[0] != 0) { 
                 send_1_byte(MATCH_ROM);
@@ -180,9 +180,9 @@ esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp){
                 rx.b[j] = read_1_byte();
             }
             if (crc_check(rx.b, 9) != ESP_OK){
-                if (temp) temp[i] = -900;//ESP_ERR_INVALID_CRC
+                if (temp) temp[i] = -9000;//ESP_ERR_INVALID_CRC
             } else{
-                if (temp) temp[i] = (10 * (int16_t)((rx.b[1] << 8) | rx.b[0]))/ 16;
+                if (temp) temp[i] = (100 * (int16_t)((rx.b[1] << 8) | rx.b[0]))/ 16;
             }
         }
     }
