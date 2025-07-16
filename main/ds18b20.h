@@ -25,11 +25,11 @@ typedef struct {
 esp_err_t set_gpio (uint8_t);
 
 /**
- * @brief get temperature in °C x 10 for all ds18b20 devices in the bus
+ * @brief get temperature in °C x 100 for all ds18b20 devices in the bus
  *
  * @param[in] array of N ds18b20 rom addresses
  *
- * @param[out] array of N temperatures in °C x 10. -800 means not sensor response and -900 means a CRC check fails. 
+ * @param[out] array of N temperatures in °C x 100. -8000 means not sensor response and -9000 means a CRC check fails. 
  *
  * @return
  * 	- ESP_OK
