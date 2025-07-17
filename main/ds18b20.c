@@ -7,16 +7,7 @@
 //Function commands
 #define CONVERT_T 0x44
 #define READ_SCRATCH 0xBE
-//1 wire times
-#define MASTER_RESET_PULSE 490 // Reset time high. Reset time low.
-#define DS18B20_MAX_WAITS 60    // Presence detect high.
-#define DS18B20_MAX_TX_PRESENCE 240 // Presence detect low.
-#define RECOVERY_DURATION 2             // Bus recovery time.
-#define MASTER_WRITE_1 4       // Time slot start.
-#define MASTER_WRITE_0 61           // Time slot.
-#define MASTER_READ_INIT 1
-#define MASTER_READ 14          // Valid data duration.
-#define READ_TIME_SLOT 61
+
 #ifdef CONFIG_IDF_TARGET_ESP8266
 #define esp_delay_us(x) os_delay_us(x)
 #else
@@ -40,6 +31,25 @@ esp_err_t set_gpio(uint8_t gpio)
     }
     return ESP_OK;
 }
+/*
+Reset Pulse:
+
+          | RESET_PULSE | RESET_WAIT_DURATION |
+          | _DURATION   |                     |
+          |             |   | | RESET     |   |
+          |             | * | | _PRESENCE |   |
+          |             |   | | _DURATION |   |
+----------+             +-----+           +--------------
+          |             |     |           |
+          |             |     |           |
+          |             |     |           |
+          +-------------+     +-----------+
+*: RESET_PRESENCE_WAIT_DURATION
+*/
+
+#define MASTER_RESET_PULSE 490 // Reset time high. Reset time low.
+#define DS18B20_MAX_WAITS 60    // Presence detect high.
+#define DS18B20_MAX_TX_PRESENCE 240 // Presence detect low.
 
 static esp_err_t initialize (){
     gpio_set_direction(pin, GPIO_MODE_OUTPUT_OD);
@@ -71,6 +81,66 @@ static esp_err_t initialize (){
     esp_delay_us(MASTER_RESET_PULSE - response_time - presence_time);
     return ESP_OK;
 }
+/*
+Write 1 bit:
+
+          | SLOT_START | SLOT_BIT  | SLOT_RECOVERY | NEXT
+          | _DURATION  | _DURATION | _DURATION     | SLOT
+          |            |           |               |
+----------+            +-------------------------------------
+          |            |
+          |            |
+          |            |
+          +------------+
+
+Write 0 bit:
+
+          | SLOT_START | SLOT_BIT  | SLOT_RECOVERY | NEXT
+          | _DURATION  | _DURATION | _DURATION     | SLOT
+          |            |           |               |
+----------+                        +-------------------------
+          |                        |
+          |                        |
+          |                        |
+          +------------------------+
+
+Read 1 bit:
+
+
+          | SLOT_START | SLOT_BIT_DURATION | SLOT_RECOVERY | NEXT
+          | _DURATION  |                   | _DURATION     | SLOT
+          |            | SLOT_BIT_   |     |               |
+          |            | SAMPLE_TIME |     |               |
+----------+            +----------------------------------------------
+          |            |
+          |            |
+          |            |
+          +------------+
+
+Read 0 bit:
+
+          | SLOT_START | SLOT_BIT_DURATION | SLOT_RECOVERY | NEXT
+          | _DURATION  |                   | _DURATION     | SLOT
+          |            | SLOT_BIT_   |     |               |
+          |            | SAMPLE_TIME |     |               |
+----------+            |             |  +-----------------------------
+          |            |                |
+          |            |   PULLED DOWN  |
+          |            |    BY DEVICE   |
+          +-----------------------------+          
+*/
+
+#define RECOVERY_DURATION    2             // Bus recovery time.
+#define MASTER_WRITE_1       4       // Time slot start.
+#define MASTER_WRITE_0      61           // Time slot.
+#define MASTER_READ_INIT     1
+#define MASTER_READ         14          // Valid data duration.
+#define READ_TIME_SLOT      61
+
+#define SLOT_START_DURATION      2  // bit start pulse duration
+#define SLOT_BIT_DURATION       60 // duration for each bit to transmit
+#define SLOT_RECOVERY_DURATION   5  // recovery time between each bit, should be longer in parasite power mode
+#define SLOT_BIT_SAMPLE_TIME    15  
 
 static void write_1_bit(const uint8_t bit)
 {
@@ -78,28 +148,29 @@ static void write_1_bit(const uint8_t bit)
     gpio_set_level(pin, 0);
     if (bit == 0)
     {
-        esp_delay_us(MASTER_WRITE_0);
+        esp_delay_us(SLOT_START_DURATION + SLOT_BIT_DURATION);//MASTER_WRITE_0);
         gpio_set_level(pin, 1);
         gpio_set_direction(pin, GPIO_MODE_INPUT);
     } else
     {
-        esp_delay_us(MASTER_WRITE_1);
+        esp_delay_us(SLOT_START_DURATION);//MASTER_WRITE_1);
         gpio_set_level(pin, 1);
         gpio_set_direction(pin, GPIO_MODE_INPUT);
-        esp_delay_us(MASTER_WRITE_0 - MASTER_WRITE_1);
+        esp_delay_us(SLOT_BIT_DURATION);//MASTER_WRITE_0 - MASTER_WRITE_1);
     }
-    esp_delay_us(RECOVERY_DURATION);
+    esp_delay_us(SLOT_RECOVERY_DURATION);//RECOVERY_DURATION);
 }
 
 static uint8_t read_1_bit(void)
 {
     gpio_set_direction(pin, GPIO_MODE_OUTPUT_OD);
     gpio_set_level(pin, 0);
-    esp_delay_us(MASTER_READ_INIT);
+    esp_delay_us(SLOT_START_DURATION);//MASTER_READ_INIT);
+    gpio_set_level(pin, 1);
     gpio_set_direction(pin, GPIO_MODE_INPUT);
-    esp_delay_us(MASTER_READ - MASTER_READ_INIT);
+    esp_delay_us(SLOT_BIT_SAMPLE_TIME);//MASTER_READ - MASTER_READ_INIT);
     uint8_t bit = gpio_get_level(pin);
-    esp_delay_us(READ_TIME_SLOT - MASTER_READ_INIT - MASTER_READ);
+    esp_delay_us(SLOT_BIT_DURATION - SLOT_BIT_SAMPLE_TIME + SLOT_RECOVERY_DURATION);//READ_TIME_SLOT - MASTER_READ_INIT - MASTER_READ);
     return bit;
 }
 
@@ -189,7 +260,7 @@ esp_err_t get_temperature(const uint64_t *sonda, size_t sondas, int16_t *temp){
     return ESP_OK;
 }
 
-esp_err_t get_rom(uint8_t pin, const uint64_t * rom){
+esp_err_t get_rom(uint8_t pin, uint64_t * rom){
     if (set_gpio(pin) != ESP_OK){
         return ESP_ERR_INVALID_ARG;
     }

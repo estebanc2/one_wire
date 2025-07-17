@@ -49,4 +49,4 @@ esp_err_t get_temperature (const uint64_t *, size_t, int16_t *);
  * 	- ESP_ERR_INVALID_ARG
  *  - ESP_ERR_NOT_FOUND
 */
-esp_err_t get_rom(uint8_t, const uint64_t *);
+esp_err_t get_rom(uint8_t, uint64_t *);
