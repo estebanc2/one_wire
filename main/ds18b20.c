@@ -130,15 +130,8 @@ Read 0 bit:
           +-----------------------------+          
 */
 
-#define RECOVERY_DURATION    2             // Bus recovery time.
-#define MASTER_WRITE_1       4       // Time slot start.
-#define MASTER_WRITE_0      61           // Time slot.
-#define MASTER_READ_INIT     1
-#define MASTER_READ         14          // Valid data duration.
-#define READ_TIME_SLOT      61
-
 #define SLOT_START_DURATION      2  // bit start pulse duration
-#define SLOT_BIT_DURATION       60 // duration for each bit to transmit
+#define SLOT_BIT_DURATION       60  // duration for each bit to transmit
 #define SLOT_RECOVERY_DURATION   5  // recovery time between each bit, should be longer in parasite power mode
 #define SLOT_BIT_SAMPLE_TIME    15  
 
